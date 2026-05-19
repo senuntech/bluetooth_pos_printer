@@ -38,17 +38,17 @@ class BluetoothPosPrinter {
   /// iOS: Retorna dispositivos BLE que possam ser impressoras.
   ///
   /// Permissões Obrigatórias no Android (AndroidManifest.xml):
-  /// - <uses-permission android:name="android.permission.BLUETOOTH" />
-  /// - <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-  /// - <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" /> <!-- Android 12+ -->
-  /// - <uses-permission android:name="android.permission.BLUETOOTH_SCAN" /> <!-- Android 12+ -->
-  /// - <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" /> <!-- Necessário para o scan -->
+  /// - `<uses-permission android:name="android.permission.BLUETOOTH" />`
+  /// - `<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />`
+  /// - `<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />` (Android 12+)
+  /// - `<uses-permission android:name="android.permission.BLUETOOTH_SCAN" />` (Android 12+)
+  /// - `<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />` (Necessário para o scan)
   ///
   /// Permissões Obrigatórias no iOS (Info.plist):
-  /// - <key>NSBluetoothAlwaysUsageDescription</key>
-  ///   <string>Precisamos de acesso ao Bluetooth para conectar à impressora.</string>
-  /// - <key>NSBluetoothPeripheralUsageDescription</key>
-  ///   <string>Precisamos de acesso ao Bluetooth para conectar à impressora.</string>
+  /// - `<key>NSBluetoothAlwaysUsageDescription</key>`
+  ///   `<string>Precisamos de acesso ao Bluetooth para conectar à impressora.</string>`
+  /// - `<key>NSBluetoothPeripheralUsageDescription</key>`
+  ///   `<string>Precisamos de acesso ao Bluetooth para conectar à impressora.</string>`
   Future<List<BluetoothPrinterDevice>> scan() async {
     final List<dynamic>? results = await _channel.invokeListMethod('scan');
     if (results == null) return [];
