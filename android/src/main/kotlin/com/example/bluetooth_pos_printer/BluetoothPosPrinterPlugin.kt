@@ -16,6 +16,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import androidx.core.content.ContextCompat
+import androidx.core.app.ActivityCompat
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -24,17 +25,21 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
+import io.flutter.plugin.common.PluginRegistry
 import java.io.IOException
 import java.io.OutputStream
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 
-class BluetoothPosPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, EventChannel.StreamHandler {
+class BluetoothPosPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware, EventChannel.StreamHandler, PluginRegistry.RequestPermissionsResultListener {
   private lateinit var channel : MethodChannel
   private lateinit var eventChannel: EventChannel
   private var context: Context? = null
   private var activity: Activity? = null
+  private var activityBinding: ActivityPluginBinding? = null
+  private val REQUEST_SCAN_PERMISSION_CODE = 1001
+  private val REQUEST_CONNECT_PERMISSION_CODE = 1002
 
   private var bluetoothAdapter: BluetoothAdapter? = null
   private var bluetoothSocket: BluetoothSocket? = null
@@ -48,6 +53,11 @@ class BluetoothPosPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware
 
   private var discoveredDevices = ArrayList<Map<String, String>>()
   private var scanResult: Result? = null
+  private var connectResult: Result? = null
+  private var connectAddress: String? = null
+  private var discoveryReceiver: BroadcastReceiver? = null
+  private var scanIncludePaired = true
+  private var scanIncludeActive = true
 
   override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
     context = flutterPluginBinding.applicationContext
@@ -64,6 +74,9 @@ class BluetoothPosPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware
   override fun onMethodCall(call: MethodCall, result: Result) {
     when (call.method) {
       "scan" -> {
+        val mode = call.argument<String>("mode") ?: "active"
+        scanIncludePaired = (mode == "all" || mode == "paired")
+        scanIncludeActive = (mode == "all" || mode == "active")
         scanDevices(result)
       }
       "connect" -> {
@@ -94,23 +107,71 @@ class BluetoothPosPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware
   override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
     channel.setMethodCallHandler(null)
     eventChannel.setStreamHandler(null)
+    if (discoveryReceiver != null) {
+      try {
+        bluetoothAdapter?.cancelDiscovery()
+        context?.unregisterReceiver(discoveryReceiver)
+      } catch (e: Exception) {
+        // Ignore
+      }
+      discoveryReceiver = null
+    }
     context = null
   }
 
   override fun onAttachedToActivity(binding: ActivityPluginBinding) {
     activity = binding.activity
+    activityBinding = binding
+    binding.addRequestPermissionsResultListener(this)
   }
 
   override fun onDetachedFromActivityForConfigChanges() {
+    activityBinding?.removeRequestPermissionsResultListener(this)
+    activityBinding = null
     activity = null
   }
 
   override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
     activity = binding.activity
+    activityBinding = binding
+    binding.addRequestPermissionsResultListener(this)
   }
 
   override fun onDetachedFromActivity() {
+    activityBinding?.removeRequestPermissionsResultListener(this)
+    activityBinding = null
     activity = null
+  }
+
+  override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray): Boolean {
+    if (requestCode == REQUEST_SCAN_PERMISSION_CODE) {
+      val allGranted = grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+      val result = scanResult
+      scanResult = null
+      if (result != null) {
+        if (allGranted) {
+          scanDevices(result)
+        } else {
+          result.error("MISSING_PERMISSIONS", "Missing Bluetooth permissions for scanning", null)
+        }
+      }
+      return true
+    } else if (requestCode == REQUEST_CONNECT_PERMISSION_CODE) {
+      val allGranted = grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+      val result = connectResult
+      val address = connectAddress
+      connectResult = null
+      connectAddress = null
+      if (result != null && address != null) {
+        if (allGranted) {
+          connectToDevice(address, result)
+        } else {
+          result.error("MISSING_PERMISSIONS", "Missing Bluetooth permissions for connecting", null)
+        }
+      }
+      return true
+    }
+    return false
   }
 
   override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
@@ -128,9 +189,37 @@ class BluetoothPosPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware
   }
 
   @SuppressLint("MissingPermission")
+  private fun stopDiscoveryAndSendResult(result: Result) {
+    if (discoveryReceiver != null) {
+      try {
+        bluetoothAdapter?.cancelDiscovery()
+        context?.unregisterReceiver(discoveryReceiver)
+      } catch (e: Exception) {
+        // Ignore if already unregistered
+      }
+      discoveryReceiver = null
+      
+      // Return paired + discovered devices
+      result.success(ArrayList(discoveredDevices))
+    }
+  }
+
+  @SuppressLint("MissingPermission")
   private fun scanDevices(result: Result) {
-    if (!hasPermissions()) {
-      result.error("MISSING_PERMISSIONS", "Missing Bluetooth permissions", null)
+    if (!hasScanPermissions()) {
+      if (activity == null) {
+        result.error("MISSING_PERMISSIONS", "Missing Bluetooth permissions and activity is null", null)
+        return
+      }
+      
+      this.scanResult = result
+      val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN)
+      } else {
+        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+      }
+      
+      ActivityCompat.requestPermissions(activity!!, permissions, REQUEST_SCAN_PERMISSION_CODE)
       return
     }
 
@@ -139,32 +228,95 @@ class BluetoothPosPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware
       return
     }
 
+    // Cancel any ongoing scan and return its result before starting a new one
+    this.scanResult?.let {
+      stopDiscoveryAndSendResult(it)
+    }
+    this.scanResult = result
+
     discoveredDevices.clear()
     
-    // Add paired devices
-    val pairedDevices = bluetoothAdapter?.bondedDevices
-    pairedDevices?.forEach { device ->
-      val map = HashMap<String, String>()
-      map["name"] = device.name ?: "Unknown"
-      map["address"] = device.address
-      discoveredDevices.add(map)
+    // Add paired devices if includePaired is true
+    if (scanIncludePaired) {
+      val pairedDevices = bluetoothAdapter?.bondedDevices
+      pairedDevices?.forEach { device ->
+        val map = HashMap<String, String>()
+        map["name"] = device.name ?: "Unknown"
+        map["address"] = device.address
+        discoveredDevices.add(map)
+      }
     }
 
-    // Since discovering new devices requires registering receivers and takes time,
-    // we will return paired devices immediately for simplicity, or we can also start discovery
-    // and wait a few seconds. To keep it robust, we'll return paired and then discover.
-    // However, the prompt asks for both. A typical approach for flutter plugins is to return paired
-    // immediately or use a stream. Since the Dart method expects a Future<List>, we will return paired devices immediately.
-    // If the user wants to discover, it requires starting discovery and listening to intents.
-    // For this demonstration, we'll return paired devices which is standard for POS printers.
-    
-    result.success(ArrayList(discoveredDevices))
+    if (scanIncludeActive) {
+      val filter = IntentFilter()
+      filter.addAction(BluetoothDevice.ACTION_FOUND)
+      filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)
+
+      discoveryReceiver = object : BroadcastReceiver() {
+        @SuppressLint("MissingPermission")
+        override fun onReceive(context: Context, intent: Intent) {
+          val action = intent.action
+          if (BluetoothDevice.ACTION_FOUND == action) {
+            val device: BluetoothDevice? = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+            if (device != null) {
+              val deviceName = device.name ?: "Unknown"
+              val deviceAddress = device.address
+              val alreadyExists = discoveredDevices.any { it["address"] == deviceAddress }
+              if (!alreadyExists) {
+                val map = HashMap<String, String>()
+                map["name"] = deviceName
+                map["address"] = deviceAddress
+                discoveredDevices.add(map)
+              }
+            }
+          } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED == action) {
+            stopDiscoveryAndSendResult(result)
+          }
+        }
+      }
+
+      context?.registerReceiver(discoveryReceiver, filter)
+      
+      try {
+        bluetoothAdapter?.startDiscovery()
+      } catch (e: SecurityException) {
+        result.error("SECURITY_EXCEPTION", "SecurityException during discovery: ${e.message}", null)
+        return
+      }
+
+      // 4 seconds active scan timeout
+      uiThreadHandler.postDelayed({
+        stopDiscoveryAndSendResult(result)
+      }, 4000)
+    } else {
+      // If active scan is not requested, return immediately with the paired devices
+      scanResult = null
+      result.success(ArrayList(discoveredDevices))
+    }
   }
 
   @SuppressLint("MissingPermission")
   private fun connectToDevice(address: String, result: Result) {
-    if (!hasPermissions()) {
-      result.error("MISSING_PERMISSIONS", "Missing Bluetooth permissions", null)
+    if (!hasConnectPermissions()) {
+      if (activity == null) {
+        result.error("MISSING_PERMISSIONS", "Missing Bluetooth permissions and activity is null", null)
+        return
+      }
+      
+      this.connectAddress = address
+      this.connectResult = result
+      
+      val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        arrayOf(Manifest.permission.BLUETOOTH_CONNECT)
+      } else {
+        arrayOf()
+      }
+      
+      if (permissions.isNotEmpty()) {
+        ActivityCompat.requestPermissions(activity!!, permissions, REQUEST_CONNECT_PERMISSION_CODE)
+      } else {
+        connectToDevice(address, result)
+      }
       return
     }
 
@@ -254,16 +406,25 @@ class BluetoothPosPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware
     }.start()
   }
 
-  private fun hasPermissions(): Boolean {
+  private fun hasScanPermissions(): Boolean {
     if (context == null) return false
-    val p1 = ContextCompat.checkSelfPermission(context!!, Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED
-    val p2 = ContextCompat.checkSelfPermission(context!!, Manifest.permission.BLUETOOTH_ADMIN) == PackageManager.PERMISSION_GRANTED
     
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-      val p3 = ContextCompat.checkSelfPermission(context!!, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
-      val p4 = ContextCompat.checkSelfPermission(context!!, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
-      return p3 && p4
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      val pScan = ContextCompat.checkSelfPermission(context!!, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
+      val pConnect = ContextCompat.checkSelfPermission(context!!, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+      pScan && pConnect
+    } else {
+      ContextCompat.checkSelfPermission(context!!, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
     }
-    return p1 && p2
+  }
+
+  private fun hasConnectPermissions(): Boolean {
+    if (context == null) return false
+    
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      ContextCompat.checkSelfPermission(context!!, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+    } else {
+      true
+    }
   }
 }

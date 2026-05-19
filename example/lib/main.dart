@@ -36,6 +36,7 @@ class _PrinterScreenState extends State<PrinterScreen> {
   List<BluetoothPrinterDevice> _devices = [];
   BluetoothPrinterDevice? _connectedDevice;
   bool _isScanning = false;
+  BluetoothScanMode _scanMode = BluetoothScanMode.active;
   late StreamSubscription<PrinterStatus> _statusSubscription;
 
   @override
@@ -66,7 +67,9 @@ class _PrinterScreenState extends State<PrinterScreen> {
     });
 
     try {
-      final devices = await BluetoothPosPrinter.instance.scan();
+      final devices = await BluetoothPosPrinter.instance.scan(
+        mode: _scanMode,
+      );
       setState(() {
         _devices = devices;
       });
@@ -195,6 +198,64 @@ class _PrinterScreenState extends State<PrinterScreen> {
                 fontSize: 16,
               ),
               textAlign: TextAlign.center,
+            ),
+          ),
+
+          // Modo de Busca
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            elevation: 2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Modo de Busca',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  SegmentedButton<BluetoothScanMode>(
+                    segments: const <ButtonSegment<BluetoothScanMode>>[
+                      ButtonSegment<BluetoothScanMode>(
+                        value: BluetoothScanMode.active,
+                        label: Text('Ativos'),
+                        icon: Icon(Icons.radar),
+                      ),
+                      ButtonSegment<BluetoothScanMode>(
+                        value: BluetoothScanMode.paired,
+                        label: Text('Pareados'),
+                        icon: Icon(Icons.link),
+                      ),
+                      ButtonSegment<BluetoothScanMode>(
+                        value: BluetoothScanMode.all,
+                        label: Text('Todos'),
+                        icon: Icon(Icons.all_inclusive),
+                      ),
+                    ],
+                    selected: <BluetoothScanMode>{_scanMode},
+                    onSelectionChanged: _isScanning
+                        ? null
+                        : (Set<BluetoothScanMode> newSelection) {
+                            setState(() {
+                              _scanMode = newSelection.first;
+                            });
+                          },
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _scanMode == BluetoothScanMode.active
+                        ? 'Busca apenas novos aparelhos ativos próximos (padrão)'
+                        : _scanMode == BluetoothScanMode.paired
+                            ? 'Exibe apenas aparelhos já pareados no Android'
+                            : 'Exibe pareados e faz busca ativa por novos aparelhos',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
             ),
           ),
 

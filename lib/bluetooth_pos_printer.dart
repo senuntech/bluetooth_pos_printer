@@ -7,6 +7,12 @@ enum PrinterStatus {
   connected,
 }
 
+enum BluetoothScanMode {
+  all,
+  paired,
+  active,
+}
+
 class BluetoothPrinterDevice {
   final String name;
   final String address;
@@ -49,8 +55,12 @@ class BluetoothPosPrinter {
   ///   `<string>Precisamos de acesso ao Bluetooth para conectar à impressora.</string>`
   /// - `<key>NSBluetoothPeripheralUsageDescription</key>`
   ///   `<string>Precisamos de acesso ao Bluetooth para conectar à impressora.</string>`
-  Future<List<BluetoothPrinterDevice>> scan() async {
-    final List<dynamic>? results = await _channel.invokeListMethod('scan');
+  Future<List<BluetoothPrinterDevice>> scan({
+    BluetoothScanMode mode = BluetoothScanMode.active,
+  }) async {
+    final List<dynamic>? results = await _channel.invokeListMethod('scan', {
+      'mode': mode.name,
+    });
     if (results == null) return [];
     
     return results.map((e) => BluetoothPrinterDevice.fromMap(e as Map<Object?, Object?>)).toList();

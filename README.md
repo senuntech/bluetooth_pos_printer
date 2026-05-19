@@ -66,10 +66,19 @@ BluetoothPosPrinter.instance.statusStream.listen((status) {
 
 ### 2. Buscar Impressoras Próximas (Scan)
 
-Isso retorna uma lista de dispositivos pareados (Android) ou periféricos BLE próximos (iOS) na forma de instâncias `BluetoothPrinterDevice`.
+O método `scan` permite buscar dispositivos disponíveis. Por padrão, ele realiza uma busca **apenas de dispositivos ativos e visíveis próximos**, o que evita poluir a lista de busca com dispositivos pareados que podem estar desligados.
+
+Você pode configurar o modo de escaneamento usando o enum `BluetoothScanMode`:
+- `BluetoothScanMode.active` (Padrão): Busca ativa apenas por aparelhos visíveis ao alcance.
+- `BluetoothScanMode.paired`: Retorna apenas os aparelhos já previamente pareados no sistema operacional (Android).
+- `BluetoothScanMode.all`: Retorna dispositivos pareados e também realiza a busca ativa por novos aparelhos.
 
 ```dart
-List<BluetoothPrinterDevice> devices = await BluetoothPosPrinter.instance.scan();
+// Escaneando apenas por dispositivos ativos por perto (padrão)
+List<BluetoothPrinterDevice> devices = await BluetoothPosPrinter.instance.scan(
+  mode: BluetoothScanMode.active,
+);
+
 for (var device in devices) {
   print('Nome: ${device.name}, Endereço/UUID: ${device.address}');
 }
