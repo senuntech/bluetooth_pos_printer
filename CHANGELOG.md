@@ -1,3 +1,10 @@
+## 1.1.0
+
+* **Novidade: Classificação de Tipo de Dispositivo**: Adicionada a propriedade `type` à classe `BluetoothPrinterDevice` para categorizar dispositivos mapeando-os como `'printer'`, `'phone'`, `'computer'`, `'audio'`, `'peripheral'` ou `'unknown'`.
+* **Mapeamento no Android**: Implementada leitura nativa do `BluetoothClass` do dispositivo pareado ou descoberto na busca para classificar os tipos usando APIs oficiais do sistema operacional.
+* **Mapeamento no iOS**: Desenvolvida heurística de detecção no Swift baseada em chaves de nomes conhecidos (como "mtp", "mpt", "print", "buds", etc.) e serviços anunciados (ex: checagem de UUID de serviço de impressão `18F0`).
+* **Visual Premium no Exemplo**: O aplicativo de exemplo agora exibe ícones representativos e coloridos na lista de busca de acordo com o tipo do dispositivo detectado.
+
 ## 1.0.1
 
 * **Novidade: Verificação de Estado do Bluetooth**: Adicionado o método `isBluetoothEnabled()` em ambas as plataformas (Android e iOS) permitindo verificar se o Bluetooth está ativo antes de tentar fazer a busca de dispositivos.
