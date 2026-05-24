@@ -444,7 +444,7 @@ class BluetoothPosPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware
     val deviceClass = btClass.deviceClass
     
     return when {
-      deviceClass == BluetoothClass.Device.IMAGING_PRINTER || majorClass == BluetoothClass.Device.Major.IMAGING -> "printer"
+      deviceClass == 1664 || majorClass == BluetoothClass.Device.Major.IMAGING -> "printer"
       majorClass == BluetoothClass.Device.Major.COMPUTER -> "computer"
       majorClass == BluetoothClass.Device.Major.PHONE -> "phone"
       majorClass == BluetoothClass.Device.Major.AUDIO_VIDEO -> "audio"
