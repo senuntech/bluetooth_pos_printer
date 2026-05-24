@@ -61,6 +61,12 @@ class _PrinterScreenState extends State<PrinterScreen> {
   }
 
   Future<void> _startScan() async {
+    final isBluetoothOn = await BluetoothPosPrinter.instance.isBluetoothEnabled();
+    if (!isBluetoothOn) {
+      _showSnackBar('Bluetooth está desativado. Por favor, ative o Bluetooth.');
+      return;
+    }
+
     setState(() {
       _isScanning = true;
       _devices.clear();

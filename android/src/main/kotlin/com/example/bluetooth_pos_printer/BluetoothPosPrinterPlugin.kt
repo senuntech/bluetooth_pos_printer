@@ -73,6 +73,13 @@ class BluetoothPosPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware
 
   override fun onMethodCall(call: MethodCall, result: Result) {
     when (call.method) {
+      "isBluetoothEnabled" -> {
+        try {
+          result.success(bluetoothAdapter != null && bluetoothAdapter!!.isEnabled)
+        } catch (e: SecurityException) {
+          result.success(false)
+        }
+      }
       "scan" -> {
         val mode = call.argument<String>("mode") ?: "active"
         scanIncludePaired = (mode == "all" || mode == "paired")

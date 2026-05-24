@@ -1,6 +1,6 @@
 name: bluetooth_pos_printer
 description: "A robust Flutter plugin for communicating with Bluetooth thermal (POS) printers. Supports Bluetooth Classic (SPP) on Android and Bluetooth Low Energy (BLE) on iOS."
-version: 1.0.0
+version: 1.0.1
 homepage: https://github.com/crist/bluetooth_pos_printer
 repository: https://github.com/crist/bluetooth_pos_printer
 issue_tracker: https://github.com/crist/bluetooth_pos_printer/issues

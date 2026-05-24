@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Este aplicativo precisa de acesso ao Bluetooth para conectar-se e imprimir recibos na sua impressora POS.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Este aplicativo precisa de acesso ao Bluetooth para conectar-se e imprimir recibos na sua impressora POS.</string>
 </dict>
 </plist>

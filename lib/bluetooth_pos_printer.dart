@@ -39,6 +39,12 @@ class BluetoothPosPrinter {
   final MethodChannel _channel = const MethodChannel('samples.flutter.dev/bluetooth_pos_printer');
   final EventChannel _statusChannel = const EventChannel('samples.flutter.dev/bluetooth_pos_printer/status');
 
+  /// Retorna `true` se o Bluetooth estiver ativado/ligado.
+  Future<bool> isBluetoothEnabled() async {
+    final bool? result = await _channel.invokeMethod<bool>('isBluetoothEnabled');
+    return result ?? false;
+  }
+
   /// Busca por impressoras Bluetooth.
   /// Android: Retorna dispositivos Classic Bluetooth SPP pareados e descobertos.
   /// iOS: Retorna dispositivos BLE que possam ser impressoras.

@@ -16,6 +16,18 @@ public class BluetoothPosPrinterPlugin: NSObject, FlutterPlugin, CBCentralManage
     
     private var isConnecting = false
     
+    private class PendingAction {
+        let action: () -> Void
+        let onTimeout: () -> Void
+        
+        init(action: @escaping () -> Void, onTimeout: @escaping () -> Void) {
+            self.action = action
+            self.onTimeout = onTimeout
+        }
+    }
+    private var pendingActions: [PendingAction] = []
+    private var peripheralNames: [UUID: String] = [:]
+    
     public static func register(with registrar: FlutterPluginRegistrar) {
         let channel = FlutterMethodChannel(name: "samples.flutter.dev/bluetooth_pos_printer", binaryMessenger: registrar.messenger())
         let instance = BluetoothPosPrinterPlugin()
@@ -31,6 +43,8 @@ public class BluetoothPosPrinterPlugin: NSObject, FlutterPlugin, CBCentralManage
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
+        case "isBluetoothEnabled":
+            isBluetoothEnabled(result: result)
         case "scan":
             scanDevices(result: result)
         case "connect":
@@ -69,21 +83,45 @@ public class BluetoothPosPrinterPlugin: NSObject, FlutterPlugin, CBCentralManage
     }
     
     private func scanDevices(result: @escaping FlutterResult) {
+        if centralManager == nil || centralManager?.state == .unknown || centralManager?.state == .resetting {
+            let pending = PendingAction(
+                action: { [weak self] in
+                    self?.scanDevices(result: result)
+                },
+                onTimeout: {
+                    result(FlutterError(code: "BLUETOOTH_DISABLED", message: "Bluetooth is not powered on (Timeout)", details: nil))
+                }
+            )
+            pendingActions.append(pending)
+            
+            // Timeout de 15.0 segundos para permitir tempo para o usuário aceitar a permissão de Bluetooth
+            DispatchQueue.main.asyncAfter(deadline: .now() + 15.0) { [weak self] in
+                guard let self = self else { return }
+                if let index = self.pendingActions.firstIndex(where: { $0 === pending }) {
+                    self.pendingActions.remove(at: index)
+                    pending.onTimeout()
+                }
+            }
+            return
+        }
+        
         if centralManager?.state != .poweredOn {
             result(FlutterError(code: "BLUETOOTH_DISABLED", message: "Bluetooth is not powered on", details: nil))
             return
         }
         
         discoveredPeripherals.removeAll()
+        peripheralNames.removeAll()
         centralManager?.scanForPeripherals(withServices: nil, options: nil)
         
-        // Return results after 3 seconds of scanning
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+        // Return results after 3.0 seconds of scanning
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+            guard let self = self else { return }
             self.centralManager?.stopScan()
             var list: [[String: String]] = []
             for p in self.discoveredPeripherals {
                 var map: [String: String] = [:]
-                map["name"] = p.name ?? "Unknown"
+                map["name"] = self.peripheralNames[p.identifier] ?? p.name ?? "Unknown"
                 map["address"] = p.identifier.uuidString
                 list.append(map)
             }
@@ -91,7 +129,55 @@ public class BluetoothPosPrinterPlugin: NSObject, FlutterPlugin, CBCentralManage
         }
     }
     
+    private func isBluetoothEnabled(result: @escaping FlutterResult) {
+        if centralManager == nil || centralManager?.state == .unknown || centralManager?.state == .resetting {
+            let pending = PendingAction(
+                action: { [weak self] in
+                    self?.isBluetoothEnabled(result: result)
+                },
+                onTimeout: {
+                    result(false)
+                }
+            )
+            pendingActions.append(pending)
+            
+            // Timeout de 15.0 segundos para aguardar resolução do estado
+            DispatchQueue.main.asyncAfter(deadline: .now() + 15.0) { [weak self] in
+                guard let self = self else { return }
+                if let index = self.pendingActions.firstIndex(where: { $0 === pending }) {
+                    self.pendingActions.remove(at: index)
+                    pending.onTimeout()
+                }
+            }
+            return
+        }
+        
+        result(centralManager?.state == .poweredOn)
+    }
+
     private func connectToDevice(address: String, result: @escaping FlutterResult) {
+        if centralManager == nil || centralManager?.state == .unknown || centralManager?.state == .resetting {
+            let pending = PendingAction(
+                action: { [weak self] in
+                    self?.connectToDevice(address: address, result: result)
+                },
+                onTimeout: {
+                    result(FlutterError(code: "BLUETOOTH_DISABLED", message: "Bluetooth is not powered on (Timeout)", details: nil))
+                }
+            )
+            pendingActions.append(pending)
+            
+            // Timeout de 15.0 segundos para aguardar resolução do estado
+            DispatchQueue.main.asyncAfter(deadline: .now() + 15.0) { [weak self] in
+                guard let self = self else { return }
+                if let index = self.pendingActions.firstIndex(where: { $0 === pending }) {
+                    self.pendingActions.remove(at: index)
+                    pending.onTimeout()
+                }
+            }
+            return
+        }
+        
         if centralManager?.state != .poweredOn {
             result(FlutterError(code: "BLUETOOTH_DISABLED", message: "Bluetooth is not powered on", details: nil))
             return
@@ -170,11 +256,27 @@ public class BluetoothPosPrinterPlugin: NSObject, FlutterPlugin, CBCentralManage
         if central.state != .poweredOn {
             disconnectInternal()
         }
+        
+        if central.state != .unknown && central.state != .resetting {
+            if !pendingActions.isEmpty {
+                let actions = pendingActions
+                pendingActions.removeAll()
+                for pending in actions {
+                    pending.action()
+                }
+            }
+        }
     }
     
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
         if !discoveredPeripherals.contains(where: { $0.identifier == peripheral.identifier }) {
             discoveredPeripherals.append(peripheral)
+        }
+        
+        if let localName = advertisementData[CBAdvertisementDataLocalNameKey] as? String {
+            peripheralNames[peripheral.identifier] = localName
+        } else if let name = peripheral.name {
+            peripheralNames[peripheral.identifier] = name
         }
     }
     
