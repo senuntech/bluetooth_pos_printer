@@ -1,3 +1,11 @@
+## 1.0.1
+
+* **Novidade: Verificação de Estado do Bluetooth**: Adicionado o método `isBluetoothEnabled()` em ambas as plataformas (Android e iOS) permitindo verificar se o Bluetooth está ativo antes de tentar fazer a busca de dispositivos.
+* **Correção no iOS (Condição de Corrida & Travamentos)**: Implementado enfileiramento seguro baseado em classes (`PendingAction`) para chamadas iniciais enquanto o `CBCentralManager` é inicializado assincronamente no iOS. Isso resolve de vez o erro `"Bluetooth is not powered on"` e impede travamentos infinitos da interface.
+* **Aumento do Timeout de Inicialização (15s)**: O tempo limite da fila de inicialização no iOS foi expandido para 15 segundos, dando margem confortável para o usuário aceitar o diálogo de permissão do sistema sem cancelar o escaneamento por timeout.
+* **Nomes de Dispositivos BLE corrigidos no iOS**: Agora o plugin lê a chave `CBAdvertisementDataLocalNameKey` dos dados de anúncio caso o periférico venha com nome nulo inicialmente, evitando mostrar dispositivos como "Unknown" na busca.
+* **Ajuste de Permissões no Exemplo**: Adicionadas as chaves obrigatórias `NSBluetoothAlwaysUsageDescription` e `NSBluetoothPeripheralUsageDescription` no `Info.plist` do aplicativo de exemplo.
+
 ## 1.0.0
 
 * **Breaking Change**: Substituição de flags booleanas `includePaired` e `includeActive` pelo enum tipado `BluetoothScanMode` no método `scan()`.
