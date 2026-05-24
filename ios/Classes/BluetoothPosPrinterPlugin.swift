@@ -121,8 +121,10 @@ public class BluetoothPosPrinterPlugin: NSObject, FlutterPlugin, CBCentralManage
             var list: [[String: String]] = []
             for p in self.discoveredPeripherals {
                 var map: [String: String] = [:]
-                map["name"] = self.peripheralNames[p.identifier] ?? p.name ?? "Unknown"
+                let name = self.peripheralNames[p.identifier] ?? p.name ?? "Unknown"
+                map["name"] = name
                 map["address"] = p.identifier.uuidString
+                map["type"] = self.getDeviceType(name: name, services: p.services)
                 list.append(map)
             }
             result(list)
@@ -312,5 +314,38 @@ public class BluetoothPosPrinterPlugin: NSObject, FlutterPlugin, CBCentralManage
                 return
             }
         }
+    }
+
+    private func getDeviceType(name: String, services: [CBService]?) -> String {
+        let lowerName = name.lowercased()
+        
+        // 1. Check services if available
+        if let services = services {
+            for service in services {
+                let uuidStr = service.uuid.uuidString.uppercased()
+                if uuidStr == "18F0" { // 18F0 is standard BLE Printing Service UUID
+                    return "printer"
+                }
+            }
+        }
+        
+        // 2. Check name hints
+        if lowerName.contains("print") || lowerName.contains("imp") || lowerName.contains("pos") || lowerName.contains("mpt") || lowerName.contains("mtp")  || lowerName.contains("thermal") || lowerName.contains("epson") || lowerName.contains("esc") {
+            return "printer"
+        }
+        
+        if lowerName.contains("audio") || lowerName.contains("sound") || lowerName.contains("speaker") || lowerName.contains("headset") || lowerName.contains("buds") || lowerName.contains("ear") || lowerName.contains("beats") {
+            return "audio"
+        }
+        
+        if lowerName.contains("iphone") || lowerName.contains("ipad") || lowerName.contains("android") || lowerName.contains("galaxy") || lowerName.contains("pixel") || lowerName.contains("phone") {
+            return "phone"
+        }
+        
+        if lowerName.contains("macbook") || lowerName.contains("imac") || lowerName.contains("pc") || lowerName.contains("computer") || lowerName.contains("laptop") || lowerName.contains("desktop") {
+            return "computer"
+        }
+        
+        return "unknown"
     }
 }

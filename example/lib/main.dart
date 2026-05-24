@@ -180,6 +180,23 @@ class _PrinterScreenState extends State<PrinterScreen> {
     }
   }
 
+  Icon _getDeviceIcon(String type) {
+    switch (type) {
+      case 'printer':
+        return const Icon(Icons.print, color: Colors.blueAccent);
+      case 'phone':
+        return const Icon(Icons.phone_android, color: Colors.green);
+      case 'computer':
+        return const Icon(Icons.computer, color: Colors.purple);
+      case 'audio':
+        return const Icon(Icons.headphones, color: Colors.orange);
+      case 'peripheral':
+        return const Icon(Icons.mouse, color: Colors.teal);
+      default:
+        return const Icon(Icons.bluetooth, color: Colors.grey);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isConnected = _connectionStatus == PrinterStatus.connected;
@@ -296,7 +313,7 @@ class _PrinterScreenState extends State<PrinterScreen> {
                           _connectedDevice?.address == device.address;
 
                       return ListTile(
-                        leading: const Icon(Icons.print),
+                        leading: _getDeviceIcon(device.type),
                         title: Text(device.name),
                         subtitle: Text(device.address),
                         trailing:

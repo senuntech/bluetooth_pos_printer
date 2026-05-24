@@ -16,13 +16,19 @@ enum BluetoothScanMode {
 class BluetoothPrinterDevice {
   final String name;
   final String address;
+  final String type;
 
-  BluetoothPrinterDevice({required this.name, required this.address});
+  BluetoothPrinterDevice({
+    required this.name,
+    required this.address,
+    required this.type,
+  });
 
   factory BluetoothPrinterDevice.fromMap(Map<Object?, Object?> map) {
     return BluetoothPrinterDevice(
       name: map['name'] as String? ?? 'Unknown',
       address: map['address'] as String? ?? '',
+      type: map['type'] as String? ?? 'unknown',
     );
   }
 }

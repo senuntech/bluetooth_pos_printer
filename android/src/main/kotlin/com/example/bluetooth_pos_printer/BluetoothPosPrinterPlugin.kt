@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothClass
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
@@ -250,6 +251,7 @@ class BluetoothPosPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware
         val map = HashMap<String, String>()
         map["name"] = device.name ?: "Unknown"
         map["address"] = device.address
+        map["type"] = getDeviceType(device)
         discoveredDevices.add(map)
       }
     }
@@ -273,6 +275,7 @@ class BluetoothPosPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware
                 val map = HashMap<String, String>()
                 map["name"] = deviceName
                 map["address"] = deviceAddress
+                map["type"] = getDeviceType(device)
                 discoveredDevices.add(map)
               }
             }
@@ -432,6 +435,21 @@ class BluetoothPosPrinterPlugin: FlutterPlugin, MethodCallHandler, ActivityAware
       ContextCompat.checkSelfPermission(context!!, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
     } else {
       true
+    }
+  }
+
+  private fun getDeviceType(device: BluetoothDevice): String {
+    val btClass = device.bluetoothClass ?: return "unknown"
+    val majorClass = btClass.majorDeviceClass
+    val deviceClass = btClass.deviceClass
+    
+    return when {
+      deviceClass == BluetoothClass.Device.IMAGING_PRINTER || majorClass == BluetoothClass.Device.Major.IMAGING -> "printer"
+      majorClass == BluetoothClass.Device.Major.COMPUTER -> "computer"
+      majorClass == BluetoothClass.Device.Major.PHONE -> "phone"
+      majorClass == BluetoothClass.Device.Major.AUDIO_VIDEO -> "audio"
+      majorClass == BluetoothClass.Device.Major.PERIPHERAL -> "peripheral"
+      else -> "unknown"
     }
   }
 }
