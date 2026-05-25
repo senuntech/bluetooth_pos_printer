@@ -1,3 +1,9 @@
+## 1.1.1
+
+* **Correção Crítica de Conexão (Fix 12)**:
+  * **Problema**: Conexões via Bluetooth Clássico (SPP) falhavam para dispositivos que não respondiam imediatamente ao comando `startDiscovery` do Android.
+  * **Solução**: Implementada lógica de retentativa (retry) com delay crescente. O plugin agora tenta iniciar a descoberta até 3 vezes em intervalos curtos antes de declarar falha, garantindo a inicialização mesmo sob condições de hardware sensíveis.
+
 ## 1.1.0
 
 * **Novidade: Classificação de Tipo de Dispositivo**: Adicionada a propriedade `type` à classe `BluetoothPrinterDevice` para categorizar dispositivos mapeando-os como `'printer'`, `'phone'`, `'computer'`, `'audio'`, `'peripheral'` ou `'unknown'`.
